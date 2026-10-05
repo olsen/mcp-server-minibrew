@@ -1,0 +1,35 @@
+[project]
+name = "mcp-server-minibrew"
+version = "0.1.0"
+description = "MCP server for MiniBrew: read devices, sessions, beers and recipes; save new recipe versions"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    # 2.x: MCPServer, and only ToolError messages reach the model (server.py).
+    "mcp[cli]>=2.2,<3",
+    "httpx>=0.28",
+]
+
+[project.scripts]
+mcp-server-minibrew = "mcp_server_minibrew.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_server_minibrew"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
