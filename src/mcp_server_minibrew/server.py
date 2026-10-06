@@ -11,11 +11,17 @@ beer's first recipe, save a never-brewed recipe version in place, and add a
 custom fermentable, hop, yeast or adjunct. Nothing here can start, stop or command
 a device or session, or delete anything; client.py allowlists the write endpoints.
 
+General instructions for the model live in instructions.md and are sent as the
+server's instructions; the new_recipe prompt walks through creating a recipe.
+
 Errors meant for the model are raised as ToolError: mcp 2 hides the message of any
 other exception behind a generic "Error executing tool".
 """
 
 from __future__ import annotations
+
+import json
+from importlib.resources import files
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -33,7 +39,10 @@ from .normalize import (
     user_action_steps,
 )
 
-mcp = MCPServer("minibrew", version=__version__)
+# General rules for the model, sent to the client when it connects (instructions.md).
+INSTRUCTIONS = files(__package__).joinpath("instructions.md").read_text(encoding="utf-8")
+
+mcp = MCPServer("minibrew", version=__version__, instructions=INSTRUCTIONS)
 
 OVERVIEW_BUCKETS = ("brew_clean_idle", "brew_acid_clean_idle", "fermenting", "serving")
 
@@ -641,7 +650,9 @@ def create_recipe(beer_id: int, recipe: dict) -> dict:
     come from search_ingredients. Run check_recipe first to see whether MiniBrew
     accepts it.
 
-    To change a recipe afterwards, use update_recipe (until it has been brewed).
+    Afterwards the user should open and save it once in pro.minibrew.io, which
+    recalculates water, efficiency and stats. To change a recipe, use update_recipe
+    (until it has been brewed).
     Returns the new recipe's summary {id, beer_id, beer, version, brewable, ...}.
     """
     body = _new_recipe_body(beer_id, recipe)
@@ -658,6 +669,122 @@ def create_recipe(beer_id: int, recipe: dict) -> dict:
     if isinstance(result, dict) and "id" in result:
         return recipe_summary(result)
     return {"result": result}
+
+
+def _addition(kind: str, amount: str, **extra) -> dict:
+    return {
+        "ingredient_id": 0,
+        "ingredient_type": kind,
+        "ingredient_name": "<from search_ingredients>",
+        "amount": amount,
+        "amount_units": "GR",
+        "duration": 0,
+        "addition_step": "0-0",
+        **extra,
+    }
+
+
+def _steps(*steps: tuple[float, str]) -> list[dict]:
+    return [
+        {"duration": d, "temperature": t, "end_temperature": t, "order": n}
+        for n, (d, t) in enumerate(steps)
+    ]
+
+
+# A blank recipe in get_recipe's format, for accounts with no recipe to copy: 1.6 kg of grain,
+# one bittering hop, primary and a 5 °C cold crash. ingredient_id 0 marks what to look up.
+RECIPE_SKELETON = {
+    "public_note": "",
+    "private_note": "",
+    "serving_temperature": "6.00",
+    "chilling_temperature": "20.00",
+    "water_amount": "7.33",
+    "kettle_water": "6.33",
+    "mashing": [
+        {
+            "mash_in_water": "1.00",
+            "sparge_in_water": None,
+            "steps": _steps((60, "66.0"), (10, "75.0")),
+            "ingredient_additions": [
+                _addition(
+                    "FERM",
+                    "1600.00",
+                    srm="3.00",
+                    fermentable_type="GRA",
+                    ingredient_dry_yield="80.00",
+                    ingredient_moisture="4.00",
+                )
+            ],
+            "order": 0,
+            "name": "Mash stage: 0",
+        }
+    ],
+    "boiling": [
+        {
+            "duration": 60,
+            "hops": [_addition("HOP", "5.00", duration=60, alpha_acid="10.0")],
+            "other_ingredients": [],
+            "order": 0,
+        }
+    ],
+    "fermenting": [
+        {
+            "fermentation_stage_type": "PRIM",
+            "yeast": [
+                _addition("YEAST", "5.50", addition_step=None, ingredient_attenuation="75.00")
+            ],
+            "steps": _steps((10.0, "20.0")),
+            "order": 0,
+            "name": "Ferm stage: 0",
+            "pressure_relief": 0,
+        },
+        {
+            "fermentation_stage_type": "COND",
+            "yeast": [],
+            "steps": _steps((3.0, "5.0")),
+            "order": 1,
+            "name": "Ferm stage: 1",
+            "pressure_relief": 0,
+        },
+    ],
+    "while_fermenting": {"hops": [], "other_ingredients": []},
+    "hop_filter": 0,
+    "og": "1.050",
+    "fg": "1.012",
+    "abv": "5.00",
+    "ibu": 30,
+    "srm": "5.00",
+    "kcal": "150.00",
+    "carbonation": "5.00",
+}
+
+NEW_RECIPE_STEPS = """\
+1. Scale it to 5.5 L within the server instructions' limits. Build it from the skeleton below
+   (get_recipe's format). Replace every ingredient_id 0 and every value; add or remove mash steps,
+   hops, fermentation stages and dry hops (while_fermenting) as the recipe needs.
+2. Map every ingredient with search_ingredients, preferring MiniBrew's own entries. Copy the
+   entry's name, yield, moisture or attenuation onto the addition. Colour (srm) and alpha acid go
+   on the addition. Amounts are grams, as strings. Ask before adding a custom ingredient: it can't
+   be deleted.
+3. Water (MiniBrew stores it as sent). kg = mashed grain incl. rice hulls, not sugars:
+   mash_in_water = kg / 1.6 on each mash stage, water_amount = 6.0 + 0.833 x kg (60 min boil),
+   kettle_water = water_amount - mash_in_water.
+4. Stats og, fg, abv, ibu, srm and kcal (per 330 ml) are stored as sent: send your estimates.
+5. Show me the grain bill, mash, boil (carousel slots), fermentation and stats before saving.
+6. check_recipe and fix its field errors, then create_beer (style from list_beer_styles,
+   carbonation in g/L) and create_recipe, and read it back with get_recipe.
+7. Tell me to open the recipe in pro.minibrew.io and save it once: the portal then recalculates
+   water, efficiency and stats (usually lower than other software; 0-minute hops count 0 IBU).
+
+Skeleton:
+"""
+
+
+@mcp.prompt(title="New MiniBrew recipe")
+def new_recipe(idea: str) -> str:
+    """Design a MiniBrew recipe from an idea or an existing recipe and save it to the account."""
+    skeleton = json.dumps(RECIPE_SKELETON, indent=1, ensure_ascii=False)
+    return f"Create a MiniBrew recipe for: {idea}\n\n{NEW_RECIPE_STEPS}{skeleton}\n"
 
 
 def main() -> None:

@@ -26,7 +26,10 @@ MCP server (Python, mcp 2 `MCPServer` over stdio) for the unofficial MiniBrew Br
   internal temperatures are only available here, not over REST.
 - `labels.py`: numeric code → label tables (process_state/type/phase, user_action, session/device types).
 - `normalize.py`: compact projections; epoch → ISO UTC; None/empty fields omitted.
-- `server.py`: the `@mcp.tool()` functions. Validate input before any request.
+- `server.py`: the `@mcp.tool()` functions and the `new_recipe` prompt. Validate input before any request.
+- `instructions.md`: general rules for any user's AI, sent as the server's MCP `instructions`. Keep it
+  MiniBrew-wide (device limits, workflow); personal brewing preferences belong in the user's own skills.
+  Max 2048 characters (Claude Code truncates beyond that); recipe-writing detail goes in `NEW_RECIPE_STEPS`, and `RECIPE_SKELETON` (passes check_recipe with real ids, Oct 2026) is the template for accounts with no recipe.
 
 Tools call `client.get_client()` through the module; the `fake_api` fixture monkeypatches it.
 
@@ -59,4 +62,5 @@ Tools call `client.get_client()` through the module; the `fake_api` fixture monk
   makes it drop the connection. A device only streams (about 1 message/s) while someone has it open in the Pro
 portal (pro.minibrew.io); otherwise it sends nothing (none in 25 min, Oct 2026). The trigger isn't captured.
 - Dependencies: `mcp` and `httpx` only.
-- Adding/changing a tool: update the README tool table and the `server.py` module docstring.
+- Adding/changing a tool: update the README tool table and the `server.py` module docstring, and
+  `instructions.md` if it changes the workflow or limits.

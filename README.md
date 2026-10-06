@@ -48,6 +48,17 @@ portal. Adding a new version to a beer that already has recipes isn't supported
 | `create_recipe` | Give a new beer its first recipe. MiniBrew stores OG/FG/ABV/IBU/SRM as sent, so calculate them first |
 | `update_recipe` | Save changes to a never-brewed recipe version in place (send the full recipe in `get_recipe`'s format) |
 
+## Instructions for the AI
+
+The server sends general MiniBrew rules to the client when it connects (MCP server
+instructions): the 5.5 L batch, 1.2–2.3 kg per mash, 6 carousel slots, required fermentation
+stages, cold crash at 5 °C, and what the server can't do. They live in
+[`src/mcp_server_minibrew/instructions.md`](src/mcp_server_minibrew/instructions.md); keep it under
+2048 characters, where Claude Code cuts server instructions off.
+
+There is also a `new_recipe` prompt (in Claude Code: `/mcp__minibrew__new_recipe <idea>`) that
+walks the AI through designing a recipe and saving it to your account, starting from a blank recipe skeleton, so no existing recipe is needed.
+
 ## Setup
 
 ```bash

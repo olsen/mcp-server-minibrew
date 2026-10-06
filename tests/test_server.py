@@ -5,6 +5,7 @@ Fixture shapes follow live responses (Oct 2026), with made-up ids and names.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import os
@@ -729,3 +730,29 @@ def test_create_adjunct_validates_before_posting(fake_api, name, kind, match):
     with pytest.raises(ToolError, match=match):
         server.create_adjunct(name, kind)
     assert api.bodies("POST") == []
+
+
+def test_server_sends_its_instructions():
+    assert server.mcp.instructions == server.INSTRUCTIONS
+    assert "5.5 L" in server.INSTRUCTIONS
+    assert "Cold crash at 5 °C" in server.INSTRUCTIONS
+    # Claude Code cuts server instructions off after 2048 characters.
+    assert len(server.INSTRUCTIONS) <= 2048
+
+
+def test_new_recipe_prompt_is_registered():
+    prompts = asyncio.run(server.mcp.list_prompts())
+    assert [p.name for p in prompts] == ["new_recipe"]
+    text = server.new_recipe("a pale ale")
+    assert "a pale ale" in text and "mash_in_water = kg / 1.6" in text
+    assert '"fermentation_stage_type": "COND"' in text
+
+
+def test_recipe_skeleton_passes_validation_and_is_coherent():
+    skeleton = server.RECIPE_SKELETON
+    server._check_recipe(skeleton)
+    assert not set(skeleton) & set(server.RECIPE_FROM_SERVER)
+    kg = sum(float(i["amount"]) for i in skeleton["mashing"][0]["ingredient_additions"]) / 1000
+    assert float(skeleton["mashing"][0]["mash_in_water"]) == round(kg / 1.6, 2)
+    assert float(skeleton["water_amount"]) == round(6.0 + 0.833 * kg, 2)
+    assert skeleton["fermenting"][-1]["steps"][-1]["temperature"] == "5.0"
