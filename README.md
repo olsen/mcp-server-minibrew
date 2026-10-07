@@ -66,10 +66,11 @@ python3.13 -m venv .venv && .venv/bin/pip install -e .
 cp .env.example .env    # then add your login or a token, see below
 ```
 
-Add it to Claude Code (`.mcp.json`):
+Inside this folder, Claude Code picks it up from the bundled `.mcp.json`. To use it from any project, add it
+at user scope:
 
-```json
-{ "mcpServers": { "minibrew": { "command": "/path/to/mcp-server-minibrew/run.sh" } } }
+```bash
+claude mcp add --scope user minibrew -- /path/to/mcp-server-minibrew/run.sh
 ```
 
 ## Login

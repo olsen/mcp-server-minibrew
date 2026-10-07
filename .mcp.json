@@ -1,6 +1,5 @@
 {
   "mcpServers": {
-    "minibrew": { "command": "/Users/henrikolsen/Development/mcp-server-minibrew/run.sh" },
-    "brewfather": { "command": "/Users/henrikolsen/Development/mcp-server-brewfather/run.sh" }
+    "minibrew": { "command": "./run.sh" }
   }
 }
