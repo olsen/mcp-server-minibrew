@@ -62,7 +62,7 @@ walks the AI through designing a recipe and saving it to your account, starting 
 ## Setup
 
 ```bash
-python3.13 -m venv .venv && .venv/bin/pip install -e .
+python3 -m venv .venv && .venv/bin/pip install -e .    # Python 3.12 or newer
 cp .env.example .env    # then add your login or a token, see below
 ```
 
@@ -72,6 +72,23 @@ at user scope:
 ```bash
 claude mcp add --scope user minibrew -- /path/to/mcp-server-minibrew/run.sh
 ```
+
+For [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp), add it to
+`~/.hermes/config.yaml` and run `/reload-mcp`:
+
+```yaml
+mcp_servers:
+  minibrew:
+    command: "/path/to/mcp-server-minibrew/run.sh"
+```
+
+Keep the login in `.env`: Hermes doesn't pass your shell environment to MCP servers, but `run.sh` points
+the server at `.env` itself. Tools appear as `mcp_minibrew_<tool>`. If the AI doesn't know the MiniBrew
+limits (ask it the max hops per carousel slot), your client isn't showing it the server's instructions:
+copy `src/mcp_server_minibrew/instructions.md` into its context.
+
+Other clients work the same way: run `run.sh` as a stdio server. The server needs outbound access to
+`api.minibrew.io:443`, and `broker.minibrew.io:15675` for live telemetry.
 
 ## Login
 
