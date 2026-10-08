@@ -21,7 +21,10 @@ other exception behind a generic "Error executing tool".
 from __future__ import annotations
 
 import json
+import os
+import sys
 from importlib.resources import files
+from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -788,8 +791,46 @@ def new_recipe(idea: str) -> str:
 
 
 def main() -> None:
-    """Console-script entry point: run the server over stdio."""
+    """Console-script entry point: run the server over stdio, or ``--check`` the setup.
+
+    ``--check`` reports which credential source would be used and whether the env file
+    is readable. It never logs in and never prints a secret value.
+    """
+    if "--check" in sys.argv[1:]:
+        raise SystemExit(_check())
     mcp.run()
+
+
+def _check() -> int:
+    env_file = os.environ.get("MINIBREW_ENV_FILE")
+    src = client.TokenSource(
+        env_file,
+        os.environ.get("MINIBREW_TOKEN"),
+        os.environ.get("MINIBREW_EMAIL"),
+        os.environ.get("MINIBREW_PASSWORD"),
+    )
+    lines = [f"MINIBREW_ENV_FILE: {env_file or '(not set)'}"]
+    if env_file:
+        path = Path(env_file)
+        lines.append(
+            "env file: " + ("found" if path.is_file() else "MISSING (no file at that path)")
+        )
+    if src.credentials():
+        lines.append("credentials: email + password (will log in)")
+    elif _has_token(src):
+        lines.append("credentials: pasted token")
+    else:
+        lines.append("credentials: NONE set; the server will report 'no MiniBrew token set'")
+    print("\n".join(lines))
+    return 0 if (src.credentials() or _has_token(src)) else 1
+
+
+def _has_token(src: client.TokenSource) -> bool:
+    try:
+        src.get()
+    except client.MiniBrewError:
+        return False
+    return True
 
 
 if __name__ == "__main__":

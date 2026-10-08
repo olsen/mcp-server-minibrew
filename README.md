@@ -115,6 +115,20 @@ copied from a logged-in portal session:
 Tokens expire. When a tool says the token was rejected, paste a fresh one into `.env`.
 The server re-reads the file when it changes, so you don't need to restart it.
 
+### Checking the setup
+
+`mcp-server-minibrew --check` reports which credential source the server will use and
+whether the env file exists. It never logs in and never prints a secret:
+
+```bash
+MINIBREW_ENV_FILE=/path/to/.env .venv/bin/mcp-server-minibrew --check
+```
+
+Exit code 0 means credentials were found; 1 means none were set.
+
+`run.sh` honours an existing `MINIBREW_ENV_FILE` and only defaults to the repo-local `.env`
+when none is given, so a host can point the server at a shared env file.
+
 ## Development
 
 ```bash
